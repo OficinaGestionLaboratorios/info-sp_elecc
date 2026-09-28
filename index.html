@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratorios: plan por suspensión de clases</title>
+<style>
+:root{--bg:#f3f5f8;--card:#fff;--ink:#16202e;--mut:#5b6778;--line:#d5dbe4;--acc:#0b5cab;--ok:#1a7f4b;--warn:#b45309}
+@media(prefers-color-scheme:dark){:root{--bg:#10151c;--card:#182029;--ink:#e8edf3;--mut:#93a0b1;--line:#2a3542;--acc:#5aa2ee;--ok:#4cc38a;--warn:#f0a04b}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Public Sans",system-ui,sans-serif}
+header{padding:28px 20px 16px;max-width:900px;margin:auto}
+h1{font-size:1.6rem;margin:0 0 6px;letter-spacing:-.01em}
+header p{margin:0;color:var(--mut);max-width:62ch}
+main{max-width:900px;margin:auto;padding:0 20px 60px}
+.bar{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0;position:sticky;top:0;background:var(--bg);padding:10px 0;z-index:2}
+input,select{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:6px;padding:9px 10px;width:100%}
+.bar input{flex:2;min-width:200px}.bar select{flex:1;min-width:180px}
+input:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--acc);outline-offset:1px}
+h2{font-size:1.05rem;margin:26px 0 8px;color:var(--mut);font-weight:600}
+details{background:var(--card);border:1px solid var(--line);border-radius:6px;margin-bottom:6px}
+summary{cursor:pointer;padding:12px 14px;display:flex;gap:12px;align-items:center;list-style:none}
+summary::-webkit-details-marker{display:none}
+.amb{font-weight:700;min-width:84px;color:var(--acc)}
+.nm{flex:1}
+.st{font-size:.85rem;color:var(--warn);white-space:nowrap}
+.st.ok{color:var(--ok)}
+details[open]>summary{border-bottom:1px solid var(--line)}
+form{padding:14px;display:grid;gap:12px}
+label{display:grid;gap:4px;font-size:.9rem;color:var(--mut);font-weight:600}
+.item{border:1px solid var(--line);border-radius:6px;padding:12px;display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.item .full{grid-column:1/-1}
+.opts{display:grid;gap:6px}
+.opts label{display:flex;gap:8px;align-items:center;font-weight:400;color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px 10px;cursor:pointer}
+.opts input{width:auto}
+button{font:inherit;border-radius:6px;border:1px solid var(--acc);padding:9px 14px;cursor:pointer;background:transparent;color:var(--acc);font-weight:600}
+button.p{background:var(--acc);color:#fff}
+.act{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.msg{font-size:.9rem}
+.msg.bad,#pname.bad{color:#c2410c}
+.steps{display:grid;grid-template-columns:1fr 1.4fr 1fr;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:6px;padding:14px;margin:16px 0}
+#pname{font-size:.9rem;font-weight:700;color:var(--mut);min-height:1.4em}
+#pname.ok{color:var(--ok)}
+@media(max-width:560px){.item,.steps{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+<h1>Plan de clases en laboratorios</h1>
+<p>Suspensión de clases por elecciones generales (2 días). Cada coordinador abre su laboratorio, registra sus cursos y elige qué se hará con las clases.</p>
+</header>
+<main>
+<section class="steps" aria-label="Datos del registro">
+<label>1. Fecha<select id="fecha"><option value="">Selecciona la fecha</option><option>Sábado 3 de octubre</option><option>Lunes 5 de octubre</option></select></label>
+<label>2. Código de personal (ID)<input id="pid" inputmode="numeric" autocomplete="off"><span id="pname" role="status"></span></label>
+<label>3. Código del curso (NRC)<input id="nrc" inputmode="numeric" autocomplete="off"></label>
+</section>
+<div class="bar">
+<input id="q" type="search" placeholder="Buscar laboratorio o ambiente (ej. J201)" aria-label="Buscar">
+<select id="prog" aria-label="Programa"><option value="">Todos los programas</option></select>
+</div>
+<div id="list"></div>
+</main>
+<script>
+/* Pega aquí la URL de tu Apps Script publicado como aplicación web (ver apps-script.gs) */
+const ENDPOINT = "PEGA_AQUI_LA_URL_DE_APPS_SCRIPT";
+const OPCIONES = ["Recuperar clases","Adelantar clases","Clases virtuales","Integrar la práctica a la siguiente sesión"];
+const FECHAS = ["Sábado 3 de octubre","Lunes 5 de octubre"];
+const D = {
+"Medicina Humana":["Laboratorios de Bioquímica|J201","Laboratorios de Bioquímica|J204","Laboratorios de Histología (Genética Histoembriología)|J401","Laboratorios de Patología|J404","Laboratorios de Fisiología|J407","Laboratorios de Fisiología|J408","Laboratorios de Inmunología|J505","Laboratorios de Morfofisiología, Anatomía Virtual|KSS102","Laboratorios de Morfofisiología, Anatomía Virtual|KSS103","Laboratorios de Anatomía general anfiteatro 6|K106","Laboratorio de Fisiología|Q101","Laboratorio Multifuncional|Q102","Laboratorios de Anatomía|P102","Laboratorio Multifuncional|P201","Laboratorios de Microbiología|P202","Laboratorio Multifuncional|M101","Laboratorio Multifuncional|M102","Centro de Esfuerzos Físicos I|J410","Centro de Esfuerzos Físicos II|J411","Centro de Esfuerzos Físicos III|Q103","Laboratorio de Cirugía Experimental|J501-502","ICODEM|J701-702","ICODEM|J608","Laparoscopía|J504","Área de Simulación|J601-602-603","Laboratorios de Farmacología|P301","Laboratorio Multifuncional|P302","Laboratorio Multifuncional|P401","Laboratorio Multifuncional|P402","Laboratorio de Citogenética|J605-606-607"],
+"Estomatología":["Anfiteatro de Estomatología|KSS101","Operatoria dental cirugía menor|I106","Sala odontológica de prótesis y periodoncia|I202","Ortodoncia|I204C","Laboratorio de Prótesis Clínica y Ortodoncia|I204D","Sala odontológica|I302","Sala de pre clínica I|I304","Sala de pre clínica II|I303","Sala de diagnóstico por imágenes|I305"],
+"Psicología":["Laboratorios de Psicología experimental|I703","Laboratorio Sala Gesell|I704","Laboratorio de Psicoterapia|I705"],
+"Obstetricia":["Laboratorio de salud sexual y reproductiva|K601A","Laboratorio de salud sexual y reproductiva|K601B","Laboratorio de salud sexual y reproductiva|K601C","Laboratorios de Centro obstétrico|K606","Laboratorios de Psicoprofilaxis obstétrica y consejería|K607"],
+"Enfermería":["Anfiteatro 4 de Enfermería y Obstetricia|KSS107","Laboratorio de Enfermería|F305","Laboratorio de Enfermería|F306"],
+"Departamento de Ciencias":["Laboratorio de Física|F203","Laboratorio de Física|F204","Laboratorio de Física|F205","Laboratorio de Física|F303","Laboratorio de Física|F307","Laboratorio de Biología|J207","Laboratorio de Biología|J208","Laboratorio de Microbiología|F202","Laboratorio de Química|J301-302","Laboratorio de Química|J304-305","Laboratorio de Química|J308"],
+"Ingeniería Civil":["Laboratorio de Hidráulica|GSS102","Laboratorio de Mecánica de Suelos I|GSS107","Laboratorio de Mecánica de Suelos II|GSS108","Laboratorio de Ingeniería de Pavimentos|GSS110","Laboratorio de Tecnología de materiales y Tecnología del Concreto|GAL101","Gabinete de Topografía|G103","Taller|G206","Taller|G209"],
+"Ingeniería de Computación y Sistemas":["Laboratorio de Ingeniería Software|D402B","Laboratorio de Computación|G201","Laboratorio de Computación|G301","Laboratorio de Computación|G401","Laboratorio de Computación|G501","Laboratorio de Computación|G601","Laboratorio de Computación|G701","Laboratorio de Computación|G801","Laboratorio de Computación|F402","Laboratorio de Computación|F403","Laboratorio de Computación|F406","Laboratorio de Computación|F407"],
+"Ingeniería Electrónica":["Laboratorio de Tecnologías Electrónicas|D403-404","Laboratorio de Redes y Ciberseguridad|D405","Laboratorio de Robótica y Automatización|D407","Laboratorio de Telecomunicaciones|D408","Laboratorio de Simulación y Diseño|D409"],
+"Ingeniería Industrial":["Laboratorio de Metrología y Estandarización|GSS103A","Laboratorio de Robótica y Automatización (CIM)|GSS104","Laboratorio de Procesos|F307","Laboratorio de Computación|G901"],
+"Ciencias de la Comunicación":["Laboratorio de Comunicación Gráfica|H103","Laboratorio de Periodismo|H104","Laboratorio de TV y Video|H109A - H109B","Laboratorio de Radio|H407","Laboratorio de Fotografía|H409A","Laboratorio de Fotografía|H409B"],
+"Arquitectura":["Laboratorios de Computación|D204","Laboratorios de Computación|D205","Laboratorios de Computación|C201","Laboratorios de Computación|C202","Laboratorios de Computación|C210","Laboratorios de Computación|C404","Laboratorio de Estructuras|LE 101","Laboratorio de Fabricación Digital|LE 101","Laboratorio de Construcción sostenible|LE 101","Almacén de TEC LAB|LE 101","Taller de Arquitectura|D103","Taller de Arquitectura|D104","Taller de Arquitectura|D106","Taller de Arquitectura|D202","Taller de Arquitectura|D203","Taller de Arquitectura|D206","Taller de Arquitectura|D207","Taller de Arquitectura|D410"],
+"Ingeniería Agrónoma":["Laboratorio de Entomología|C101","Laboratorio de Fitopatología|C102","Tinglado Experimental de Fitopatología|C-","Laboratorio de Suelos y Plantas|C103","Laboratorio de Semillas|C104","Laboratorio de Ciencias Agrarias I|C105","Laboratorio de Ciencias Agrarias II|C108"],
+"Medicina Veterinaria y Zootecnia":["Laboratorio de Medicina Veterinaria 1|F101","Laboratorio de Medicina Veterinaria 2|F102","Laboratorio de Medicina Veterinaria 3|F103"],
+"Ciencias Económicas":["Laboratorio de Computación|H 307A","Laboratorio de Computación|H 307B","Laboratorio de Computación|H 310","Laboratorio de Computación|H 401"],
+"Derecho":["Sala de Litigación Oral|E502"],
+"Educación":["Sala de Estimulación Temprana|D201"],
+"Investigación":["Laboratorio de Biología Molecular e Inmunología|J101","Lab. de Proteónica, Enzimas y Metabolitos Activos|J104","Laboratorio de Investigación|J105","Laboratorio de Investigación Multidisciplinario|J106","Laboratorio de Investigación|J107","Laboratorio de Investigación|J108","Laboratorio de Robótica|F308","Investigación de Microbiología|J307"]
+};
+const done = JSON.parse(localStorage.getItem("labs_ok2")||"{}");
+const $ = s=>document.querySelector(s);
+const esc = s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+Object.keys(D).forEach(p=>$("#prog").add(new Option(p,p)));
+let persona=null;
+const cnt = id=>done[$("#fecha").value+"|"+id]||0;
+const stTxt = n=>n?`${n} enviado${n>1?"s":""}`:"Pendiente";
+
+async function buscar(){
+ const id=$("#pid").value.trim(), out=$("#pname"); persona=null; out.className="";
+ if(!id){out.textContent="";return}
+ if(ENDPOINT.startsWith("PEGA")){out.textContent="Falta configurar la URL de Apps Script en index.html.";out.className="bad";return}
+ out.textContent="Buscando…";
+ try{
+  const j=await (await fetch(ENDPOINT+"?id="+encodeURIComponent(id))).json();
+  if(j.ok){persona={id,nombre:j.nombre};out.textContent=j.nombre;out.className="ok"}
+  else{out.textContent="ID no encontrado. Revise el código.";out.className="bad"}
+ }catch(_){out.textContent="No se pudo consultar el ID. Intente otra vez.";out.className="bad"}
+}
+
+function render(){
+ const q=$("#q").value.toLowerCase(), pf=$("#prog").value; let h="";
+ for(const [p,arr] of Object.entries(D)){
+  if(pf&&pf!==p) continue;
+  const rows=arr.map((s,i)=>[s,i,s.split("|")]).filter(([s])=>!q||(s+" "+p).toLowerCase().includes(q));
+  if(!rows.length) continue;
+  h+=`<h2>${esc(p)}</h2>`;
+  for(const [s,i,[nm,am]] of rows){
+   const id=p+"#"+i, n=cnt(id);
+   h+=`<details data-id="${esc(id)}" data-p="${esc(p)}" data-n="${esc(nm)}" data-a="${esc(am)}"><summary><span class="amb">${esc(am)}</span><span class="nm">${esc(nm)}</span><span class="st ${n?"ok":""}">${stTxt(n)}</span></summary>
+   <form><div class="item"><label>Nombre del curso<input name="curso" required></label>
+   <label>Docente o docentes<input name="docentes" required placeholder="Separe con coma si son varios"></label>
+   <div class="full opts" role="radiogroup" aria-label="Opción">${OPCIONES.map(o=>`<label><input type="radio" name="op" value="${o}" required> ${o}</label>`).join("")}</div></div>
+   <div class="act"><button class="p">Enviar registro</button><span class="msg" role="status"></span></div></form></details>`;
+  }
+ }
+ $("#list").innerHTML=h||"<p>No hay laboratorios con esa búsqueda.</p>";
+}
+
+document.addEventListener("submit",async e=>{
+ e.preventDefault();const f=e.target,d=f.closest("details"),msg=f.querySelector(".msg");
+ msg.className="msg";
+ const fecha=$("#fecha").value,nrc=$("#nrc").value.trim();
+ const falta=[!fecha&&"la fecha",!persona&&"un ID de personal válido",!nrc&&"el NRC"].filter(Boolean);
+ if(falta.length){msg.textContent="Primero indique "+falta.join(", ")+" en la parte superior.";msg.className="msg bad";scrollTo({top:0,behavior:"smooth"});return}
+ if(ENDPOINT.startsWith("PEGA")){msg.textContent="Falta configurar la URL de Apps Script en index.html.";msg.className="msg bad";return}
+ const row={fecha,idPersonal:persona.id,tecnico:persona.nombre,nrc,programa:d.dataset.p,laboratorio:d.dataset.n,ambiente:d.dataset.a,
+  curso:f.curso.value.trim(),docentes:f.docentes.value.trim(),opcion:f.querySelector("input[type=radio]:checked").value};
+ msg.textContent="Enviando…";
+ try{
+  await fetch(ENDPOINT,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify([row])});
+  const k=fecha+"|"+d.dataset.id;done[k]=(done[k]||0)+1;localStorage.setItem("labs_ok2",JSON.stringify(done));
+  const st=d.querySelector(".st");st.textContent=stTxt(done[k]);st.classList.add("ok");
+  f.reset();$("#nrc").value="";msg.textContent="Registro enviado. Para otro curso, escriba su NRC arriba y complete de nuevo.";
+ }catch(_){msg.textContent="No se pudo enviar. Revise su conexión e intente otra vez.";msg.className="msg bad"}
+});
+$("#pid").addEventListener("change",buscar);
+$("#fecha").onchange=render;
+$("#q").oninput=render;$("#prog").onchange=render;render();
+</script>
+</body>
+</html>
