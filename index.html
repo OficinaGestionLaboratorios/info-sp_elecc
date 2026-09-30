@@ -91,8 +91,28 @@ const $ = s=>document.querySelector(s);
 const esc = s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 Object.keys(D).forEach(p=>$("#prog").add(new Option(p,p)));
 let persona=null;
-const cnt = id=>done[$("#fecha").value+"|"+id]||0;
-const stTxt = n=>n?`${n} enviado${n>1?"s":""}`:"Pendiente";
+/* Conteo: viene de la hoja (todos los equipos); si no responde, se usa el conteo local */
+let srv=null;
+const kk=(p,nm,am)=>[p,nm,am].join("|");
+const cnt=(id,p,nm,am)=>{
+ const f=$("#fecha").value;
+ if(srv){const o=srv[kk(p,nm,am)]||{};return f?(o[f]||0):Object.values(o).reduce((a,b)=>a+b,0)}
+ return f?(done[f+"|"+id]||0):FECHAS.reduce((a,x)=>a+(done[x+"|"+id]||0),0);
+};
+const stTxt = n=>n?`${String(n).padStart(2,"0")} registro${n>1?"s":""}`:"Pendiente";
+function pintar(){
+ document.querySelectorAll("details[data-id]").forEach(d=>{
+  const n=cnt(d.dataset.id,d.dataset.p,d.dataset.n,d.dataset.a),st=d.querySelector(".st");
+  st.textContent=stTxt(n);st.classList.toggle("ok",n>0);
+ });
+}
+async function cargarConteos(){
+ if(ENDPOINT.startsWith("PEGA"))return;
+ try{
+  const j=await (await fetch(ENDPOINT+"?conteo=1&t="+Date.now())).json();
+  if(j.ok&&j.conteos){srv=j.conteos;pintar()}
+ }catch(_){}
+}
 
 async function buscar(){
  const id=$("#pid").value.trim(), out=$("#pname"); persona=null; out.className="";
@@ -114,7 +134,7 @@ function render(){
   if(!rows.length) continue;
   h+=`<h2>${esc(p)}</h2>`;
   for(const [s,i,[nm,am]] of rows){
-   const id=p+"#"+i, n=cnt(id);
+   const id=p+"#"+i, n=cnt(id,p,nm,am);
    h+=`<details data-id="${esc(id)}" data-p="${esc(p)}" data-n="${esc(nm)}" data-a="${esc(am)}"><summary><span class="amb">${esc(am)}</span><span class="nm">${esc(nm)}</span><span class="st ${n?"ok":""}">${stTxt(n)}</span></summary>
    <form><div class="item"><label>Nombre del curso<input name="curso" required></label>
    <label>Docente o docentes<input name="docentes" required placeholder="Separe con coma si son varios"></label>
@@ -138,13 +158,14 @@ document.addEventListener("submit",async e=>{
  try{
   await fetch(ENDPOINT,{method:"POST",mode:"no-cors",headers:{"Content-Type":"text/plain"},body:JSON.stringify([row])});
   const k=fecha+"|"+d.dataset.id;done[k]=(done[k]||0)+1;localStorage.setItem("labs_ok2",JSON.stringify(done));
-  const st=d.querySelector(".st");st.textContent=stTxt(done[k]);st.classList.add("ok");
+  if(srv){const kx=kk(d.dataset.p,d.dataset.n,d.dataset.a);srv[kx]=srv[kx]||{};srv[kx][fecha]=(srv[kx][fecha]||0)+1}
+  pintar();setTimeout(cargarConteos,3000);
   f.reset();$("#nrc").value="";msg.textContent="Registro enviado. Para otro curso, escriba su NRC arriba y complete de nuevo.";
  }catch(_){msg.textContent="No se pudo enviar. Revise su conexión e intente otra vez.";msg.className="msg bad"}
 });
 $("#pid").addEventListener("change",buscar);
-$("#fecha").onchange=render;
-$("#q").oninput=render;$("#prog").onchange=render;render();
+$("#fecha").onchange=()=>{pintar()};
+$("#q").oninput=render;$("#prog").onchange=render;render();cargarConteos();setInterval(cargarConteos,60000);
 </script>
 </body>
 </html>
